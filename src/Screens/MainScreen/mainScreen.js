@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
+import { motion } from "framer-motion";
 
 export default function MainScreen() {
   const [chats, setChats] = useState([]);
@@ -19,8 +20,6 @@ export default function MainScreen() {
       console.log("Error in adding new message");
     }
   };
-
-  const temp = "#DDEEED";
 
   useEffect(() => {
     async function fetchData() {
@@ -77,6 +76,20 @@ export default function MainScreen() {
     window.location.href = "/maincontent";
   };
 
+  const container = {
+    hidden: { opacity: 0 },
+    show: {
+      opacity: 1,
+      transition: {
+        staggerChildren: 1,
+      },
+    },
+  };
+
+  const item = {
+    hidden: { opacity: 0 },
+    show: { opacity: 1 },
+  };
   return (
     <div
       style={{
@@ -150,7 +163,11 @@ export default function MainScreen() {
           </button>
 
           <div className="flex flex-row  h-20 justify-center py-2">
-            <img className="h-16 w-16 rounded-full" src={user.profilePhoto} />
+            <img
+              alt="profilephoto"
+              className="h-16 w-16 rounded-full"
+              src={user.profilePhoto}
+            />
             <a className="ml-4 my-auto" href="/uploadphoto">
               <button className="px-2 py-2 rounded-md bg-slate-500 text-white">
                 Upload User Photo
@@ -197,19 +214,34 @@ export default function MainScreen() {
 
       <div className="flex justify-center">
         <div className="flex flex-col">
-          {chats.map((chat) => {
-            return (
-              <div
-                style={{ backgroundColor: user.bubbleColor, maxWidth: "300px" }}
-                className="px-6 py-4 my-4 rounded-xl w-max"
-              >
-                <div className="flex justify-start">
-                  <img className="h-8 w-8 rounded-full" src={chat.photo} />
-                </div>
-                <div>{chat.content}</div>
-              </div>
-            );
-          })}
+          <motion.ul variants={container} initial="hidden" animate="show">
+            {chats.map((chat,i) => {
+              return (
+                <motion.li
+                  variants={item}
+                  transition={{ duration: 0.3, delay: i * 0.8 }}
+                >
+                  <div
+                    style={{
+                      backgroundColor: user.bubbleColor,
+                      maxWidth: "300px",
+                    }}
+                    className="px-6 py-4 my-4 rounded-xl w-max"
+                  >
+                    <div className="flex justify-start">
+                      <img
+                        alt="Bubble"
+                        className="h-8 w-8 rounded-full"
+                        src={chat.photo}
+                      />
+                    </div>
+                    <div>{chat.content}</div>
+                  </div>
+                </motion.li>
+              );
+            })}
+          </motion.ul>
+
           <div>
             <div
               style={{ backgroundColor: user.bubbleColor, maxWidth: "300px" }}
