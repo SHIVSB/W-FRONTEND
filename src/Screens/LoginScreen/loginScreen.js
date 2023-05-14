@@ -20,6 +20,7 @@ export default function LoginScreen() {
           localStorage.setItem("token", "Bearer " + response.data.token);
           // console.log(localStorage.getItem("token"))
           localStorage.setItem("user", response.data.result.firstName);
+          localStorage.setItem("delay", response.data.result.delay);
           localStorage.setItem("userid", response.data.result._id);
           window.location.href = "/maincontent";
         }

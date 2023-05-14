@@ -1,24 +1,104 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import axios from "axios";
-import { motion } from "framer-motion";
+import io from "socket.io-client";
+
+const SOCKET_SERVER_URL = "http://localhost:4000";
 
 export default function MainScreen() {
-  const [chats, setChats] = useState([]);
   const [user, setUser] = useState("");
   const [messageData, setMessageData] = useState("");
-  const [gradientFrom, setGradientFrom] = useState("#DDEEED");
-  const [gradientTo, setGradientTo] = useState("#FDF1E0");
-  const [bubbleColor, setBubbleColor] = useState("");
+  const [delay, setDelay] = useState(localStorage.getItem("delay") || 1);
+  const [message, setMessage] = useState("");
+  const inputRef = useRef();
 
-  const addMessage = async (content) => {
-    try {
-      await axios.post("http://localhost:4000/api/v1/newmessage", {
-        content: content,
-      });
-      window.location.href = "/maincontent";
-    } catch (error) {
-      console.log("Error in adding new message");
+  const [image, setImage] = useState(null);
+  const [imageUrl, setImageUrl] = useState(null);
+  const [displayImage, setDisplayImage] = useState(null);
+  const [commonInputRef, setCommonInputRef] = useState(null);
+
+  const handleFileChange = (e) => {
+    const file = e.target.files[0];
+    const reader = new FileReader();
+
+    reader.onload = (event) => {
+      const base64String = event.target.result;
+      setImageUrl(base64String);
+      setImage(file);
+    };
+
+    reader.readAsDataURL(file);
+  };
+
+  const handleUpload = () => {
+    if (image) {
+      const reader = new FileReader();
+
+      reader.onload = (event) => {
+        const base64String = event.target.result;
+        commonInputRef.emit("image", base64String);
+      };
+
+      reader.readAsDataURL(image);
     }
+  };
+
+  useEffect(() => {
+    if (commonInputRef) {
+      commonInputRef.on("buffer", (buffer) => {
+        console.log(buffer);
+        setDisplayImage(buffer);
+      });
+
+      return () => {
+        commonInputRef.disconnect();
+      };
+    }
+  }, [commonInputRef]);
+
+  useEffect(() => {
+    inputRef.current = io(SOCKET_SERVER_URL, {
+      query: {
+        delay: localStorage.getItem("delay"),
+      },
+    });
+
+    setCommonInputRef(inputRef.current);
+  }, [delay]);
+
+  useEffect(() => {
+    if (commonInputRef) {
+      commonInputRef.emit("addmessage", "This is the first Message");
+
+      commonInputRef.on("newmessage", (message) => {
+        setMessage((prevMessages) => [...prevMessages, message]);
+      });
+
+      return () => {
+        commonInputRef.off("message");
+      };
+    }
+  }, [commonInputRef]);
+
+  const addMessage = (content) => {
+    commonInputRef.emit("addmessage", content);
+    inputRef.current.value = "";
+    setMessageData("");
+  };
+
+  const addDelay = async (delay) => {
+    try {
+      await axios
+        .post("http://localhost:4000/api/v1/addmessagedelay", { delay: delay })
+        .then(function (response) {
+          if (response.data.success) {
+            setDelay(delay);
+            localStorage.setItem("delay", delay);
+          }
+        })
+        .catch(function (error) {
+          console.log(error);
+        });
+    } catch (error) {}
   };
 
   useEffect(() => {
@@ -26,18 +106,6 @@ export default function MainScreen() {
       axios.defaults.headers = {
         authorization: localStorage.getItem("token"),
       };
-      await axios
-        .get("http://localhost:4000/api/v1/getmessage")
-        .then(function (response) {
-          if (response.data.success) {
-            setChats(response.data.result);
-          }
-        })
-        .catch(function (error) {
-          console.log(error);
-          // window.location.href = "/";
-        });
-
       await axios
         .get("http://localhost:4000/api/v1/getuser")
         .then(function (response) {
@@ -47,146 +115,86 @@ export default function MainScreen() {
         })
         .catch(function (error) {
           console.log(error);
-          // window.location.href = "/";
         });
     }
     fetchData();
   }, []);
 
-  const selectGradient = async () => {
-    const toSendData = {
-      gradientFrom: gradientFrom,
-      gradientTo: gradientTo,
-    };
-    await axios.post(
-      "http://localhost:4000/api/v1/updategradientcolor",
-      toSendData
-    );
-    window.location.href = "/maincontent";
-  };
-
-  const selectBubbleColor = async () => {
-    const toSendData = {
-      bubbleColor: bubbleColor,
-    };
-    await axios.post(
-      "http://localhost:4000/api/v1/updatebubblecolor",
-      toSendData
-    );
-    window.location.href = "/maincontent";
-  };
-
-  const container = {
-    hidden: { opacity: 0 },
-    show: {
-      opacity: 1,
-      transition: {
-        staggerChildren: 1,
-      },
-    },
-  };
-
-  const item = {
-    hidden: { opacity: 0 },
-    show: { opacity: 1 },
-  };
   return (
     <div
       style={{
         paddingBottom: "150px",
-        background: `linear-gradient(239.26deg, ${user.gradientFrom} 63.17%,${user.gradientTo} 94.92%)`,
+        height: "100%",
+        minHeight: "100vh",
+        background: `linear-gradient(239.26deg,#DDEEED 63.17%,#FDF1E0 94.92%)`,
       }}
     >
-      <div className="flex justify-center border-b-4 border-black">
-        <div>
-          <label for="cars">Choose Gradient From : </label>
-          <select
+      <div className="flex flex-row border-b-2 justify-between mx-2 border-black">
+        <div className="flex space-x-2 items-center">
+          <input
             onChange={(e) => {
-              setGradientFrom(e.target.value);
+              setDelay(e.target.value);
+              localStorage.setItem("delay", e.target.value);
             }}
-            id="gfrom"
-            name="gfrom"
-          >
-            <option value=""></option>
-            <option value="#DDEEED">#DDEEED</option>
-            <option value="#DEEDDD">#DEEDDD</option>
-            <option value="#EDEDED">#EDEDED</option>
-            <option value="#DEDDDD">#DEDDDD</option>
-          </select>
-
-          <label for="cars">Choose Gradient To : </label>
-          <select
-            onChange={(e) => {
-              setGradientTo(e.target.value);
-            }}
-            id="gto"
-            name="gto"
-          >
-            <option value=""></option>
-            <option value="#DDEEED">#DDEEED</option>
-            <option value="#FDF1E0">#FDF1E0</option>
-            <option value="#FDFe21">#FDFe21</option>
-            <option value="#FDF340">#FDF340</option>
-          </select>
-
+            value={delay}
+            type="text"
+            className="
+        form-control
+        block
+        w-[200px]
+        px-3
+        h-10
+        py-1.5
+        text-base
+        font-normal
+        text-gray-700
+        bg-white bg-clip-padding
+        border border-solid border-gray-300
+        rounded
+        transition
+        ease-in-out
+        m-0
+        focus:text-gray-700 focus:bg-white focus:border-blue-600 focus:outline-none
+      "
+            id="exampleFormControlInput1"
+            placeholder="Set Message Delay"
+          />
           <button
+            className="mx-1  h-10 rounded-md text-white py-1 px-2 bg-green-500"
             onClick={() => {
-              selectGradient();
+              addDelay(delay);
             }}
-            className="ml-2 px-2 py-1 bg-blue-500 rounded-md"
           >
             Submit
           </button>
-          <label className="ml-8" for="cars">
-            Choose Bubble Color:{" "}
-          </label>
-          <select
-            onChange={(e) => {
-              setBubbleColor(e.target.value);
-            }}
-            id="bubbleColor"
-            name="bubbleColor"
-          >
-            <option value=""></option>
-            <option value="#fff">#fff</option>
-            <option value="#DEEDDD">#DEEDDD</option>
-            <option value="#EDEDED">#EDEDED</option>
-            <option value="#DEDDDD">#DEDDDD</option>
-          </select>
-          <button
-            onClick={() => {
-              selectBubbleColor();
-            }}
-            className="ml-2 px-2 py-1 bg-blue-500 rounded-md"
-          >
-            Submit
-          </button>
-
-          <div className="flex flex-row  h-20 justify-center py-2">
-            <img
-              alt="profilephoto"
-              className="h-16 w-16 rounded-full"
-              src={user.profilePhoto}
-            />
-            <a className="ml-4 my-auto" href="/uploadphoto">
-              <button className="px-2 py-2 rounded-md bg-slate-500 text-white">
-                Upload User Photo
-              </button>
-            </a>
-          </div>
+        </div>
+        <div className="flex flex-row  h-20 justify-center py-2">
+          <img
+            alt="profilephoto"
+            className="h-16 w-16 rounded-full"
+            src={user.profilePhoto}
+          />
+          <a className="ml-4 my-auto" href="/uploadphoto">
+            <button className="px-2 py-2 rounded-md bg-slate-500 text-white">
+              Upload User Photo
+            </button>
+          </a>
         </div>
       </div>
-      <div className="flex mx-auto w-48 py-4">
+      <div className="flex mx-auto justify-center w-48 py-4">
         <input
           onChange={(e) => {
             setMessageData(e.target.value);
           }}
+          ref={inputRef}
+          value={messageData}
           type="text"
           className="
         form-control
         block
-        w-full
+        w-[200px]
         px-3
+        h-10
         py-1.5
         text-base
         font-normal
@@ -203,53 +211,48 @@ export default function MainScreen() {
           placeholder="Add Bubble"
         />
         <button
-          className="mx-1 rounded-md py-1 px-2 bg-green-500"
+          className="mx-1 h-10 rounded-md text-white py-1 px-2 bg-green-500"
           onClick={() => {
             addMessage(messageData);
           }}
         >
           Submit
         </button>
+        <div>
+          <input type="file" onChange={handleFileChange} />
+          {imageUrl && <img src={imageUrl} alt="preview" />}
+          <button onClick={handleUpload}>Upload Image</button>
+        </div>
       </div>
 
       <div className="flex justify-center">
         <div className="flex flex-col">
-          <motion.ul variants={container} initial="hidden" animate="show">
-            {chats.map((chat,i) => {
+          {message &&
+            message.map((chat, i) => {
               return (
-                <motion.li
-                  variants={item}
-                  transition={{ duration: 0.3, delay: i * 0.8 }}
+                <div
+                  style={{
+                    backgroundColor: user.bubbleColor,
+                    maxWidth: "300px",
+                  }}
+                  className="px-6 py-4 my-4 rounded-xl w-max"
                 >
-                  <div
-                    style={{
-                      backgroundColor: user.bubbleColor,
-                      maxWidth: "300px",
-                    }}
-                    className="px-6 py-4 my-4 rounded-xl w-max"
-                  >
-                    <div className="flex justify-start">
-                      <img
-                        alt="Bubble"
-                        className="h-8 w-8 rounded-full"
-                        src={chat.photo}
-                      />
-                    </div>
-                    <div>{chat.content}</div>
+                  <div className="flex justify-start">
+                    <img
+                      alt="Bubble"
+                      className="h-8 w-8 rounded-full"
+                      src={`https://cdn.pixabay.com/photo/2016/08/08/09/17/avatar-1577909_960_720.png`}
+                    />
                   </div>
-                </motion.li>
+                  <div>{chat}</div>
+                </div>
               );
             })}
-          </motion.ul>
-
-          <div>
-            <div
-              style={{ backgroundColor: user.bubbleColor, maxWidth: "300px" }}
-              className="px-6 py-4 my-4 rounded-r-lg rounded-b-lg w-max"
-            >
-              <div>Can I Help?</div>
-            </div>
-          </div>
+          {displayImage && (
+            <>
+              <img className="h-32 y-32" src={displayImage} alt="uploaded" />
+            </>
+          )}
         </div>
       </div>
     </div>
